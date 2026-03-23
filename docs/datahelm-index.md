@@ -20,6 +20,8 @@ If you are new to the project, read in this order:
 10. [`datahelm-milestone-implementation-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-milestone-implementation-plan-v2.md)
 11. [`datahelm-m0-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-implementation-tickets.md)
 12. [`datahelm-m0-review.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-review.md)
+13. [`datahelm-m1-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m1-implementation-tickets.md)
+14. [`datahelm-live-validation-checklist.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-live-validation-checklist.md)
 
 ## 3. Quick Guide by Need
 
@@ -46,6 +48,7 @@ If you are new to the project, read in this order:
 - [`datahelm-milestone-implementation-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-milestone-implementation-plan-v2.md)
 - [`datahelm-m0-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-implementation-tickets.md)
 - [`datahelm-m0-review.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-review.md)
+- [`datahelm-m1-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m1-implementation-tickets.md)
 
 ### If you want to understand local data, runtime state, and storage boundaries
 
@@ -54,6 +57,7 @@ If you are new to the project, read in this order:
 ### If you want to understand validation and release quality
 
 - [`datahelm-qa-test-strategy-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-qa-test-strategy-v2.md)
+- [`datahelm-live-validation-checklist.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-live-validation-checklist.md)
 
 ### If you want to understand how feasibility is proven first
 
@@ -119,9 +123,9 @@ If you are new to the project, read in this order:
 
 If this documentation set is approved, the most practical next move is:
 
-1. review [`datahelm-m0-review.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-review.md) and the spike reports under [`spikes/README.md`](/Users/purwaren/Projects/tools/adminer-desktop/spikes/README.md)
-2. approve the `Proceed with Caveats` milestone decision
-3. convert approved `M1` scope into the next ticket pack
+1. use [`datahelm-live-validation-checklist.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-live-validation-checklist.md) to finish live smoke validation
+2. use [`datahelm-m1-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m1-implementation-tickets.md) to begin MVP core-loop implementation
+3. record `M1` demo evidence as implementation progresses
 
 ## 7. Summary
 
