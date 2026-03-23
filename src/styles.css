@@ -177,6 +177,56 @@ button:disabled {
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
 }
 
+.connection-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.connection-form label {
+  display: grid;
+  gap: 0.45rem;
+  color: #c5d5e5;
+}
+
+.connection-form input,
+.connection-form select,
+.sql-editor {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(143, 186, 246, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5eef8;
+  padding: 0.75rem 0.9rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.7rem;
+  align-self: end;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+.sql-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.sql-editor {
+  min-height: 180px;
+  resize: vertical;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
 .error-banner {
   background: rgba(244, 63, 94, 0.14);
   border: 1px solid rgba(244, 63, 94, 0.3);
@@ -191,5 +241,8 @@ button:disabled {
   .hero-actions {
     flex-direction: column;
   }
-}
 
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}

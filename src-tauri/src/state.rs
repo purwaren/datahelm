@@ -1,25 +1,32 @@
 use crate::{
     adapters, persistence, runtime,
     contracts::{
-        AppBootstrapInfo, CapabilityMap, ConnectionProfile, DatabaseEngine, MetadataKind,
-        MetadataObject, MetadataSnapshot, QueryJob, QueryJobState, SessionContext, TlsMode,
+        AppBootstrapInfo, CapabilityMap, ConnectionProfile, DatabaseEngine, LocalStoreStatus,
+        MetadataKind, MetadataObject, MetadataSnapshot, QueryJob, QueryJobState, SessionContext,
+        TlsMode,
     },
 };
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     app_version: String,
+    local_store: LocalStoreStatus,
 }
 
 impl AppState {
-    pub fn new(app_version: impl Into<String>) -> Self {
+    pub fn new(app_version: impl Into<String>, local_store: LocalStoreStatus) -> Self {
         Self {
             app_version: app_version.into(),
+            local_store,
         }
     }
 
     pub fn app_version(&self) -> &str {
         &self.app_version
+    }
+
+    pub fn local_store(&self) -> &LocalStoreStatus {
+        &self.local_store
     }
 
     pub fn bootstrap_info(&self) -> AppBootstrapInfo {
@@ -44,6 +51,7 @@ impl AppState {
                 "SP1-02".to_string(),
                 "SP3-01".to_string(),
             ],
+            local_store: self.local_store.clone(),
             sample_profile: ConnectionProfile {
                 name: "Local PostgreSQL".to_string(),
                 engine: DatabaseEngine::PostgreSql,
@@ -54,6 +62,7 @@ impl AppState {
                 environment_label: Some("local".to_string()),
                 read_only: true,
                 tls_mode: TlsMode::Prefer,
+                secret_ref: None,
             },
             sample_session: SessionContext {
                 session_id: "bootstrap-session".to_string(),
@@ -111,4 +120,3 @@ impl AppState {
         }
     }
 }
-
