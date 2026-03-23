@@ -1,8 +1,8 @@
-# Adminer Desktop BRD v2
+# DataHelm BRD v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
@@ -10,13 +10,13 @@
 
 ## 2. Product Positioning
 
-Adminer Desktop is a desktop-native database administration tool for developers and technical operators who want the speed and directness of Adminer, but with better desktop UX, stronger production safety, and deeper PostgreSQL/MySQL workflows.
+DataHelm is a desktop-native database administration tool for developers and technical operators who want the speed and directness of Adminer, but with better desktop UX, stronger production safety, and deeper PostgreSQL/MySQL workflows.
 
 It is not intended to be an all-database enterprise suite. It is a focused workbench for day-to-day schema inspection, SQL execution, data editing, and operational troubleshooting.
 
 ## 3. Product Differentiation
 
-Adminer Desktop will differentiate by combining:
+DataHelm will differentiate by combining:
 
 - Fast startup and low interface overhead
 - PostgreSQL and MySQL specific depth rather than broad engine sprawl
@@ -295,7 +295,7 @@ Needs efficient object browsing, repeatable SQL workflows, and trustworthy guard
 
 ## 19. Final v1 Recommendation
 
-Adminer Desktop v1 should launch as a macOS-first PostgreSQL/MySQL workbench centered on four core strengths:
+DataHelm v1 should launch as a macOS-first PostgreSQL/MySQL workbench centered on four core strengths:
 
 - Fast connection and exploration
 - Strong SQL execution workflow

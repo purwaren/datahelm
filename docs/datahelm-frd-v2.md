@@ -1,16 +1,16 @@
-# Adminer Desktop FRD v2
+# DataHelm FRD v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Final Draft
-- Source: [`adminer-desktop-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-brd-v2.md)
+- Source: [`datahelm-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-brd-v2.md)
 
 ## 2. Purpose
 
-This document defines the functional behavior required for Adminer Desktop v1. It is intended to guide product design, engineering implementation, and QA validation for the first release.
+This document defines the functional behavior required for DataHelm v1. It is intended to guide product design, engineering implementation, and QA validation for the first release.
 
 ## 3. Release Scope
 

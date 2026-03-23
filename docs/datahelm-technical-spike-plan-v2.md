@@ -1,16 +1,14 @@
-# Adminer Desktop Technical Spike Plan v2
+# DataHelm Technical Spike Plan v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source Technical Design: [`adminer-desktop-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design-v2.md)
-- Source Roadmap: [`adminer-desktop-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-delivery-roadmap-v2.md)
-- Source QA Strategy: [`adminer-desktop-qa-test-strategy-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-qa-test-strategy-v2.md)
-- Prior Version: [`adminer-desktop-technical-spike-plan.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-spike-plan.md)
-- Critique: [`adminer-desktop-technical-spike-plan-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-spike-plan-critique.md)
+- Source Technical Design: [`datahelm-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-design-v2.md)
+- Source Roadmap: [`datahelm-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-delivery-roadmap-v2.md)
+- Source QA Strategy: [`datahelm-qa-test-strategy-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-qa-test-strategy-v2.md)
 
 ## 2. Purpose
 

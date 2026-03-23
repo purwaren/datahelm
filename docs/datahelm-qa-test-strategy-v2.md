@@ -1,23 +1,21 @@
-# Adminer Desktop QA and Test Strategy v2
+# DataHelm QA and Test Strategy v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source BRD: [`adminer-desktop-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-brd-v2.md)
-- Source FRD: [`adminer-desktop-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-frd-v2.md)
-- Source Technical Design: [`adminer-desktop-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design-v2.md)
-- Source UX Spec: [`adminer-desktop-ux-spec-wireflow-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-ux-spec-wireflow-v2.md)
-- Source Backlog: [`adminer-desktop-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-epics-user-stories-v2.md)
-- Source Data/State Model: [`adminer-desktop-data-state-model-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-data-state-model-v2.md)
-- Prior Version: [`adminer-desktop-qa-test-strategy.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-qa-test-strategy.md)
-- Critique: [`adminer-desktop-qa-test-strategy-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-qa-test-strategy-critique.md)
+- Source BRD: [`datahelm-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-brd-v2.md)
+- Source FRD: [`datahelm-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-frd-v2.md)
+- Source Technical Design: [`datahelm-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-design-v2.md)
+- Source UX Spec: [`datahelm-ux-spec-wireflow-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-ux-spec-wireflow-v2.md)
+- Source Backlog: [`datahelm-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-epics-user-stories-v2.md)
+- Source Data/State Model: [`datahelm-data-state-model-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-data-state-model-v2.md)
 
 ## 2. Purpose
 
-This document defines the revised quality strategy and test approach for Adminer Desktop v1. It adds sharper release gates, clearer automation boundaries, stronger resilience testing, and more explicit validation structure for MVP and v1.
+This document defines the revised quality strategy and test approach for DataHelm v1. It adds sharper release gates, clearer automation boundaries, stronger resilience testing, and more explicit validation structure for MVP and v1.
 
 ## 3. Revision Summary
 
@@ -619,4 +617,4 @@ Create next:
 
 ## 23. Summary
 
-Adminer Desktop needs a QA strategy that treats safety, state integrity, engine divergence, and UX clarity as core quality pillars. This revised strategy gives the team a clearer path from feasibility proof to MVP sign-off to v1 release readiness.
+DataHelm needs a QA strategy that treats safety, state integrity, engine divergence, and UX clarity as core quality pillars. This revised strategy gives the team a clearer path from feasibility proof to MVP sign-off to v1 release readiness.

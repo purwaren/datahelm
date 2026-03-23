@@ -1,19 +1,17 @@
-# Adminer Desktop Technical Design v2
+# DataHelm Technical Design v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source BRD: [`adminer-desktop-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-brd-v2.md)
-- Source FRD: [`adminer-desktop-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-frd-v2.md)
-- Prior Version: [`adminer-desktop-technical-design.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design.md)
-- Critique: [`adminer-desktop-technical-design-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design-critique.md)
+- Source BRD: [`datahelm-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-brd-v2.md)
+- Source FRD: [`datahelm-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-frd-v2.md)
 
 ## 2. Purpose
 
-This document defines the revised preferred technical architecture for Adminer Desktop v1 and adds clearer decision boundaries, narrower v1 technical scope, stronger operational safeguards, and explicit spike exit criteria.
+This document defines the revised preferred technical architecture for DataHelm v1 and adds clearer decision boundaries, narrower v1 technical scope, stronger operational safeguards, and explicit spike exit criteria.
 
 ## 3. Revision Summary
 
@@ -814,7 +812,7 @@ Keep macOS-specific code isolated behind thin wrappers so Windows keychain and p
 ## 25. Repository Structure
 
 ```text
-adminer-desktop/
+datahelm/
   src-ui/
     app/
     modules/
@@ -885,7 +883,7 @@ Mitigation:
 
 ## 27. Feasibility Recommendation
 
-Adminer Desktop remains technically feasible as a macOS-first v1, but only under a disciplined architecture and scope model.
+DataHelm remains technically feasible as a macOS-first v1, but only under a disciplined architecture and scope model.
 
 The recommended path is still:
 

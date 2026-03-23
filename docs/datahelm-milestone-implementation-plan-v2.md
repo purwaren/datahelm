@@ -1,16 +1,14 @@
-# Adminer Desktop Milestone Implementation Plan v2
+# DataHelm Milestone Implementation Plan v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source Roadmap: [`adminer-desktop-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-delivery-roadmap-v2.md)
-- Source Backlog: [`adminer-desktop-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-epics-user-stories-v2.md)
-- Source QA Strategy: [`adminer-desktop-qa-test-strategy-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-qa-test-strategy-v2.md)
-- Prior Version: [`adminer-desktop-milestone-implementation-plan.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-milestone-implementation-plan.md)
-- Critique: [`adminer-desktop-milestone-implementation-plan-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-milestone-implementation-plan-critique.md)
+- Source Roadmap: [`datahelm-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-delivery-roadmap-v2.md)
+- Source Backlog: [`datahelm-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-epics-user-stories-v2.md)
+- Source QA Strategy: [`datahelm-qa-test-strategy-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-qa-test-strategy-v2.md)
 
 ## 2. Purpose
 

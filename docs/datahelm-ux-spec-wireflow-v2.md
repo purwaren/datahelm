@@ -1,20 +1,18 @@
-# Adminer Desktop UX Spec and Wireflow v2
+# DataHelm UX Spec and Wireflow v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source BRD: [`adminer-desktop-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-brd-v2.md)
-- Source FRD: [`adminer-desktop-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-frd-v2.md)
-- Source Technical Design: [`adminer-desktop-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design-v2.md)
-- Prior Version: [`adminer-desktop-ux-spec-wireflow.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-ux-spec-wireflow.md)
-- Critique: [`adminer-desktop-ux-spec-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-ux-spec-critique.md)
+- Source BRD: [`datahelm-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-brd-v2.md)
+- Source FRD: [`datahelm-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-frd-v2.md)
+- Source Technical Design: [`datahelm-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-design-v2.md)
 
 ## 2. Purpose
 
-This document defines the revised user experience model and primary wireflows for Adminer Desktop v1. It narrows the UX baseline for launch, clarifies editing patterns, adds stronger accessibility and responsive rules, and makes the main flows easier to validate.
+This document defines the revised user experience model and primary wireflows for DataHelm v1. It narrows the UX baseline for launch, clarifies editing patterns, adds stronger accessibility and responsive rules, and makes the main flows easier to validate.
 
 ## 3. Revision Summary
 
@@ -793,7 +791,7 @@ Create next:
 
 ## 23. Summary
 
-Adminer Desktop v1 should feel like a focused database workbench with three dominant qualities:
+DataHelm v1 should feel like a focused database workbench with three dominant qualities:
 
 - always clear about context
 - always fast to inspect and query

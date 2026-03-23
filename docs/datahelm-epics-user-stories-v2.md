@@ -1,21 +1,19 @@
-# Adminer Desktop Epics and User Stories v2
+# DataHelm Epics and User Stories v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source BRD: [`adminer-desktop-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-brd-v2.md)
-- Source FRD: [`adminer-desktop-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-frd-v2.md)
-- Source Technical Design: [`adminer-desktop-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design-v2.md)
-- Source UX Spec: [`adminer-desktop-ux-spec-wireflow-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-ux-spec-wireflow-v2.md)
-- Prior Version: [`adminer-desktop-epics-user-stories.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-epics-user-stories.md)
-- Critique: [`adminer-desktop-epics-user-stories-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-epics-user-stories-critique.md)
+- Source BRD: [`datahelm-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-brd-v2.md)
+- Source FRD: [`datahelm-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-frd-v2.md)
+- Source Technical Design: [`datahelm-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-design-v2.md)
+- Source UX Spec: [`datahelm-ux-spec-wireflow-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-ux-spec-wireflow-v2.md)
 
 ## 2. Purpose
 
-This document defines the revised backlog structure for Adminer Desktop. It sharpens the MVP scope, breaks stories into more buildable slices, adds sequencing and feasibility markers, and improves acceptance consistency for planning and QA.
+This document defines the revised backlog structure for DataHelm. It sharpens the MVP scope, breaks stories into more buildable slices, adds sequencing and feasibility markers, and improves acceptance consistency for planning and QA.
 
 ## 3. Release and Milestone Model
 

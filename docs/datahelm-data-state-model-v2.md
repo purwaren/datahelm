@@ -1,22 +1,20 @@
-# Adminer Desktop Data and State Model v2
+# DataHelm Data and State Model v2
 
 ## 1. Document Control
 
-- Product: Adminer Desktop
+- Product: DataHelm
 - Version: v2
 - Date: 2026-03-23
 - Status: Revised Draft
-- Source BRD: [`adminer-desktop-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-brd-v2.md)
-- Source FRD: [`adminer-desktop-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-frd-v2.md)
-- Source Technical Design: [`adminer-desktop-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-technical-design-v2.md)
-- Source UX Spec: [`adminer-desktop-ux-spec-wireflow-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-ux-spec-wireflow-v2.md)
-- Source Backlog: [`adminer-desktop-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-epics-user-stories-v2.md)
-- Prior Version: [`adminer-desktop-data-state-model.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-data-state-model.md)
-- Critique: [`adminer-desktop-data-state-model-critique.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/adminer-desktop-data-state-model-critique.md)
+- Source BRD: [`datahelm-brd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-brd-v2.md)
+- Source FRD: [`datahelm-frd-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-frd-v2.md)
+- Source Technical Design: [`datahelm-technical-design-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-design-v2.md)
+- Source UX Spec: [`datahelm-ux-spec-wireflow-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-ux-spec-wireflow-v2.md)
+- Source Backlog: [`datahelm-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-epics-user-stories-v2.md)
 
 ## 2. Purpose
 
-This document defines the revised data and state model for Adminer Desktop v1. It adds scope labels, lifecycle rules, stronger privacy boundaries, user-facing persistence expectations, and state invariants to make implementation and QA more consistent.
+This document defines the revised data and state model for DataHelm v1. It adds scope labels, lifecycle rules, stronger privacy boundaries, user-facing persistence expectations, and state invariants to make implementation and QA more consistent.
 
 ## 3. Revision Summary
 
@@ -41,7 +39,7 @@ Compared with v1, this version:
 
 ## 5. State Categories
 
-Adminer Desktop uses five main categories of state:
+DataHelm uses five main categories of state:
 
 1. persisted app data
 2. secure secret data
