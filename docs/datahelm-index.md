@@ -18,6 +18,7 @@ If you are new to the project, read in this order:
 8. [`datahelm-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-delivery-roadmap-v2.md)
 9. [`datahelm-technical-spike-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-spike-plan-v2.md)
 10. [`datahelm-milestone-implementation-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-milestone-implementation-plan-v2.md)
+11. [`datahelm-m0-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-implementation-tickets.md)
 
 ## 3. Quick Guide by Need
 
@@ -42,6 +43,7 @@ If you are new to the project, read in this order:
 - [`datahelm-epics-user-stories-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-epics-user-stories-v2.md)
 - [`datahelm-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-delivery-roadmap-v2.md)
 - [`datahelm-milestone-implementation-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-milestone-implementation-plan-v2.md)
+- [`datahelm-m0-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-implementation-tickets.md)
 
 ### If you want to understand local data, runtime state, and storage boundaries
 
@@ -74,6 +76,7 @@ If you are new to the project, read in this order:
 - [`datahelm-delivery-roadmap-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-delivery-roadmap-v2.md)
 - [`datahelm-milestone-implementation-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-milestone-implementation-plan-v2.md)
 - [`datahelm-technical-spike-plan-v2.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-technical-spike-plan-v2.md)
+- [`datahelm-m0-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-implementation-tickets.md)
 
 ## 4.4 Quality and Validation
 
@@ -113,9 +116,9 @@ If you are new to the project, read in this order:
 
 If this documentation set is approved, the most practical next move is:
 
-1. run the technical spikes
+1. run the technical spikes using [`datahelm-m0-implementation-tickets.md`](/Users/purwaren/Projects/tools/adminer-desktop/docs/datahelm-m0-implementation-tickets.md)
 2. update roadmap assumptions based on spike outcomes
-3. convert milestone plans into implementation tickets
+3. convert approved `M1` scope into the next ticket pack
 
 ## 7. Summary
 
