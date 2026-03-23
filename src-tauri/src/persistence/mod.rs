@@ -7,7 +7,8 @@ use rusqlite::{params, Connection};
 
 use crate::{
     contracts::{
-        ConnectionProfile, DatabaseEngine, LocalStoreStatus, SavedConnectionProfile, TlsMode,
+        ConnectionProfile, DatabaseEngine, EditorDraftEntry, LocalStoreStatus,
+        SavedConnectionProfile, SaveEditorDraftRequest, TlsMode,
     },
     secret_store,
 };
@@ -149,6 +150,109 @@ pub fn list_connection_profiles(db_path: &str) -> Result<Vec<SavedConnectionProf
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())
+}
+
+pub fn save_editor_draft(
+    db_path: &str,
+    request: SaveEditorDraftRequest,
+) -> Result<EditorDraftEntry, String> {
+    let connection = open_connection(db_path)?;
+    connection
+        .execute(
+            r#"
+            INSERT INTO editor_recovery (
+                workspace_key,
+                engine,
+                connection_profile_name,
+                database_name,
+                sql_text,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(workspace_key) DO UPDATE SET
+                engine = excluded.engine,
+                connection_profile_name = excluded.connection_profile_name,
+                database_name = excluded.database_name,
+                sql_text = excluded.sql_text,
+                updated_at = CURRENT_TIMESTAMP
+            "#,
+            params![
+                request.workspace_key,
+                request.engine.as_ref().map(engine_to_str),
+                request.connection_profile_name,
+                request.database_name,
+                request.sql_text,
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+
+    load_editor_draft(db_path, &request.workspace_key)?
+        .ok_or_else(|| "Saved draft could not be reloaded".to_string())
+}
+
+pub fn load_editor_draft(
+    db_path: &str,
+    workspace_key: &str,
+) -> Result<Option<EditorDraftEntry>, String> {
+    let connection = open_connection(db_path)?;
+    let mut statement = connection
+        .prepare(
+            r#"
+            SELECT
+                workspace_key,
+                engine,
+                connection_profile_name,
+                database_name,
+                sql_text,
+                updated_at
+            FROM editor_recovery
+            WHERE workspace_key = ?
+            LIMIT 1
+            "#,
+        )
+        .map_err(|error| error.to_string())?;
+
+    let mut rows = statement
+        .query(params![workspace_key])
+        .map_err(|error| error.to_string())?;
+    let Some(row) = rows.next().map_err(|error| error.to_string())? else {
+        return Ok(None);
+    };
+
+    let engine_value: Option<String> = row.get(1).map_err(|error| error.to_string())?;
+
+    Ok(Some(EditorDraftEntry {
+        workspace_key: row.get(0).map_err(|error| error.to_string())?,
+        engine: engine_value.as_deref().map(engine_from_str).transpose()?,
+        connection_profile_name: row.get(2).map_err(|error| error.to_string())?,
+        database_name: row.get(3).map_err(|error| error.to_string())?,
+        sql_text: row.get(4).map_err(|error| error.to_string())?,
+        updated_at: row.get(5).map_err(|error| error.to_string())?,
+    }))
+}
+
+pub fn append_action_log(
+    db_path: &str,
+    session_id: Option<&str>,
+    action_type: &str,
+    action_status: &str,
+    metadata_json: &str,
+) -> Result<(), String> {
+    let connection = open_connection(db_path)?;
+    connection
+        .execute(
+            r#"
+            INSERT INTO action_log (
+                session_id,
+                action_type,
+                action_status,
+                metadata_json
+            ) VALUES (?, ?, ?, ?)
+            "#,
+            params![session_id, action_type, action_status, metadata_json],
+        )
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
 }
 
 fn migrate(connection: &Connection) -> Result<(), String> {

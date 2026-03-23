@@ -134,6 +134,38 @@ interface QueryExecutionResult {
   notices: string[];
 }
 
+interface EditorDraftEntry {
+  workspaceKey: string;
+  engine?: DatabaseEngine;
+  connectionProfileName?: string;
+  databaseName?: string;
+  sqlText: string;
+  updatedAt: string;
+}
+
+interface SaveEditorDraftRequest {
+  workspaceKey: string;
+  engine?: DatabaseEngine;
+  connectionProfileName?: string;
+  databaseName?: string;
+  sqlText: string;
+}
+
+interface CancellationProbeRequest {
+  profile: ConnectionProfile;
+  password?: string;
+}
+
+interface CancellationProbeResult {
+  engine: DatabaseEngine;
+  supported: boolean;
+  cancelled: boolean;
+  strategy: string;
+  probeSql: string;
+  notes: string[];
+  observedError?: string;
+}
+
 interface HealthCheck {
   status: string;
   runtime: string;
@@ -155,11 +187,14 @@ interface AppBootstrapInfo {
 
 export type {
   AppBootstrapInfo,
+  CancellationProbeRequest,
+  CancellationProbeResult,
   CapabilityMap,
   ConnectionTestRequest,
   ConnectionTestResult,
   ConnectionProfile,
   DatabaseEngine,
+  EditorDraftEntry,
   HealthCheck,
   LocalStoreStatus,
   MetadataColumn,
@@ -173,6 +208,7 @@ export type {
   QueryJob,
   QueryJobState,
   QueryResultColumn,
+  SaveEditorDraftRequest,
   SaveConnectionProfileRequest,
   SavedConnectionProfile,
   SessionContext,

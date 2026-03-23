@@ -4,6 +4,7 @@ mod contracts;
 mod persistence;
 mod runtime;
 mod secret_store;
+mod safety;
 mod state;
 
 use state::AppState;
@@ -30,7 +31,10 @@ pub fn run() {
             commands::fetch_metadata,
             commands::save_connection_profile,
             commands::list_connection_profiles,
-            commands::execute_sql
+            commands::execute_sql,
+            commands::save_editor_draft,
+            commands::load_editor_draft,
+            commands::run_cancellation_probe
         ])
         .run(tauri::generate_context!())
         .expect("failed to run DataHelm application");

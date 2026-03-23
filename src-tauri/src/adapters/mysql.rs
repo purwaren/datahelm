@@ -1,4 +1,5 @@
 use std::time::Instant;
+use tokio::time::{sleep, Duration};
 
 use sqlx::{
     mysql::{MySqlConnectOptions, MySqlConnection, MySqlSslMode},
@@ -6,10 +7,10 @@ use sqlx::{
 };
 
 use crate::contracts::{
-    CapabilityMap, ConnectionTestRequest, ConnectionTestResult, DatabaseEngine, MetadataColumn,
-    MetadataDetail, MetadataFetchRequest, MetadataFetchResult, MetadataKind, MetadataObject,
-    QueryExecutionResult, QueryJobState, QueryResultColumn, SessionContext, SqlExecutionRequest,
-    TlsMode,
+    CancellationProbeRequest, CancellationProbeResult, CapabilityMap, ConnectionTestRequest,
+    ConnectionTestResult, DatabaseEngine, MetadataColumn, MetadataDetail, MetadataFetchRequest,
+    MetadataFetchResult, MetadataKind, MetadataObject, QueryExecutionResult, QueryJobState,
+    QueryResultColumn, SessionContext, SqlExecutionRequest, TlsMode,
 };
 use crate::runtime;
 
@@ -307,7 +308,7 @@ pub async fn execute_sql(
             rows: normalized_rows.clone(),
             row_count: normalized_rows.len(),
             affected_rows: None,
-            notices: vec!["mysql row-returning execution completed".to_string()],
+            notices: notices_for_row_limit("mysql row-returning execution completed", row_limit),
         })
     } else {
         let result = query(statement)
@@ -326,6 +327,77 @@ pub async fn execute_sql(
             notices: vec!["mysql statement executed without rowset".to_string()],
         })
     }
+}
+
+pub async fn run_cancellation_probe(
+    request: CancellationProbeRequest,
+) -> Result<CancellationProbeResult, String> {
+    let profile = request.profile;
+    let probe_sql = "select sleep(10)";
+
+    let mut options = MySqlConnectOptions::new()
+        .host(&profile.host)
+        .port(profile.port)
+        .username(&profile.username)
+        .ssl_mode(map_tls_mode(&profile.tls_mode));
+
+    if let Some(password) = request.password.as_deref() {
+        options = options.password(password);
+    }
+
+    if let Some(database) = profile.default_database.as_deref() {
+        options = options.database(database);
+    }
+
+    let mut primary_connection = MySqlConnection::connect_with(&options)
+        .await
+        .map_err(format_connect_error)?;
+    let mut control_connection = MySqlConnection::connect_with(&options)
+        .await
+        .map_err(format_connect_error)?;
+
+    let connection_id = query_scalar::<_, u64>("select connection_id()")
+        .fetch_one(&mut primary_connection)
+        .await
+        .map_err(format_connect_error)?;
+
+    let probe_task = tokio::spawn(async move {
+        query(probe_sql)
+            .execute(&mut primary_connection)
+            .await
+            .map(|_| ())
+    });
+
+    sleep(Duration::from_millis(500)).await;
+
+    let kill_sql = format!("KILL QUERY {connection_id}");
+    let kill_result = query(&kill_sql).execute(&mut control_connection).await;
+    let kill_error = kill_result.err().map(|error| error.to_string());
+
+    let probe_outcome: Result<(), sqlx::Error> = probe_task
+        .await
+        .map_err(|error| format!("Cancellation probe join failed: {error}"))?;
+    let probe_error = probe_outcome.err().map(|error| error.to_string());
+
+    let observed_error = match (kill_error, probe_error) {
+        (_, Some(query_error)) => Some(query_error),
+        (Some(kill_error), None) => Some(kill_error),
+        (None, None) => None,
+    };
+    let cancelled = observed_error.is_some();
+
+    Ok(runtime::cancellation_probe_result(
+        DatabaseEngine::MySql,
+        "KILL QUERY",
+        probe_sql,
+        true,
+        cancelled,
+        vec![
+            "mysql cancellation probe executed".to_string(),
+            "separate control connection attempted KILL QUERY".to_string(),
+        ],
+        observed_error,
+    ))
 }
 
 fn returns_rows(sql: &str) -> bool {
@@ -371,4 +443,12 @@ fn mysql_value_to_string(row: &sqlx::mysql::MySqlRow, index: usize) -> String {
     }
 
     "<unrenderable>".to_string()
+}
+
+fn notices_for_row_limit(base_notice: &str, row_limit: Option<u32>) -> Vec<String> {
+    let mut notices = vec![base_notice.to_string()];
+    if let Some(limit) = row_limit {
+        notices.push(format!("row limit applied: {limit}"));
+    }
+    notices
 }

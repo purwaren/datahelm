@@ -205,6 +205,46 @@ pub struct QueryExecutionResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EditorDraftEntry {
+    pub workspace_key: String,
+    pub engine: Option<DatabaseEngine>,
+    pub connection_profile_name: Option<String>,
+    pub database_name: Option<String>,
+    pub sql_text: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveEditorDraftRequest {
+    pub workspace_key: String,
+    pub engine: Option<DatabaseEngine>,
+    pub connection_profile_name: Option<String>,
+    pub database_name: Option<String>,
+    pub sql_text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancellationProbeRequest {
+    pub profile: ConnectionProfile,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancellationProbeResult {
+    pub engine: DatabaseEngine,
+    pub supported: bool,
+    pub cancelled: bool,
+    pub strategy: String,
+    pub probe_sql: String,
+    pub notes: Vec<String>,
+    pub observed_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HealthCheck {
     pub status: String,
     pub runtime: String,

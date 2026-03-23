@@ -1,4 +1,5 @@
 use std::time::Instant;
+use tokio::time::{sleep, Duration};
 
 use sqlx::{
     postgres::{PgConnectOptions, PgConnection, PgSslMode},
@@ -6,10 +7,10 @@ use sqlx::{
 };
 
 use crate::contracts::{
-    CapabilityMap, ConnectionTestRequest, ConnectionTestResult, DatabaseEngine, MetadataColumn,
-    MetadataDetail, MetadataFetchRequest, MetadataFetchResult, MetadataKind, MetadataObject,
-    QueryExecutionResult, QueryJobState, QueryResultColumn, SessionContext, SqlExecutionRequest,
-    TlsMode,
+    CancellationProbeRequest, CancellationProbeResult, CapabilityMap, ConnectionTestRequest,
+    ConnectionTestResult, DatabaseEngine, MetadataColumn, MetadataDetail, MetadataFetchRequest,
+    MetadataFetchResult, MetadataKind, MetadataObject, QueryExecutionResult, QueryJobState,
+    QueryResultColumn, SessionContext, SqlExecutionRequest, TlsMode,
 };
 use crate::runtime;
 
@@ -324,7 +325,10 @@ pub async fn execute_sql(
             row_count: normalized_rows.len(),
             rows: normalized_rows,
             affected_rows: None,
-            notices: vec!["postgres row-returning execution completed".to_string()],
+            notices: notices_for_row_limit(
+                "postgres row-returning execution completed",
+                row_limit,
+            ),
         })
     } else {
         let result = query(statement)
@@ -343,6 +347,73 @@ pub async fn execute_sql(
             notices: vec!["postgres statement executed without rowset".to_string()],
         })
     }
+}
+
+pub async fn run_cancellation_probe(
+    request: CancellationProbeRequest,
+) -> Result<CancellationProbeResult, String> {
+    let profile = request.profile;
+    let probe_sql = "select pg_sleep(10)";
+
+    let mut options = PgConnectOptions::new()
+        .host(&profile.host)
+        .port(profile.port)
+        .username(&profile.username)
+        .ssl_mode(map_tls_mode(&profile.tls_mode));
+
+    if let Some(password) = request.password.as_deref() {
+        options = options.password(password);
+    }
+
+    if let Some(database) = profile.default_database.as_deref() {
+        options = options.database(database);
+    }
+
+    let mut primary_connection = PgConnection::connect_with(&options)
+        .await
+        .map_err(format_connect_error)?;
+    let mut control_connection = PgConnection::connect_with(&options)
+        .await
+        .map_err(format_connect_error)?;
+
+    let backend_pid = query_scalar::<_, i32>("select pg_backend_pid()")
+        .fetch_one(&mut primary_connection)
+        .await
+        .map_err(format_connect_error)?;
+
+    let probe_task = tokio::spawn(async move {
+        query(probe_sql)
+            .execute(&mut primary_connection)
+            .await
+            .map(|_| ())
+    });
+
+    sleep(Duration::from_millis(500)).await;
+
+    let cancel_ok = query_scalar::<_, bool>("select pg_cancel_backend($1)")
+        .bind(backend_pid)
+        .fetch_one(&mut control_connection)
+        .await
+        .map_err(format_connect_error)?;
+
+    let probe_outcome: Result<(), sqlx::Error> = probe_task
+        .await
+        .map_err(|error| format!("Cancellation probe join failed: {error}"))?;
+    let observed_error = probe_outcome.err().map(|error| error.to_string());
+    let cancelled = cancel_ok && observed_error.is_some();
+
+    Ok(runtime::cancellation_probe_result(
+        DatabaseEngine::PostgreSql,
+        "pg_cancel_backend",
+        probe_sql,
+        true,
+        cancelled,
+        vec![
+            "postgres cancellation probe executed".to_string(),
+            "separate control connection issued pg_cancel_backend".to_string(),
+        ],
+        observed_error,
+    ))
 }
 
 fn returns_rows(sql: &str) -> bool {
@@ -385,4 +456,12 @@ fn pg_value_to_string(row: &sqlx::postgres::PgRow, index: usize) -> String {
     }
 
     "<unrenderable>".to_string()
+}
+
+fn notices_for_row_limit(base_notice: &str, row_limit: Option<u32>) -> Vec<String> {
+    let mut notices = vec![base_notice.to_string()];
+    if let Some(limit) = row_limit {
+        notices.push(format!("row limit applied: {limit}"));
+    }
+    notices
 }

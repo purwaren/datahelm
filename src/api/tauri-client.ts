@@ -1,12 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppBootstrapInfo,
+  CancellationProbeRequest,
+  CancellationProbeResult,
   ConnectionTestRequest,
   ConnectionTestResult,
+  EditorDraftEntry,
   HealthCheck,
   MetadataFetchRequest,
   MetadataFetchResult,
   QueryExecutionResult,
+  SaveEditorDraftRequest,
   SaveConnectionProfileRequest,
   SavedConnectionProfile,
   SqlExecutionRequest,
@@ -292,6 +296,56 @@ async function executeSql(
   return safeInvoke<QueryExecutionResult>("execute_sql", { request });
 }
 
+async function saveEditorDraft(
+  request: SaveEditorDraftRequest,
+): Promise<EditorDraftEntry> {
+  if (!isTauriRuntimeAvailable) {
+    return {
+      workspaceKey: request.workspaceKey,
+      engine: request.engine,
+      connectionProfileName: request.connectionProfileName,
+      databaseName: request.databaseName,
+      sqlText: request.sqlText,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  return safeInvoke<EditorDraftEntry>("save_editor_draft", { request });
+}
+
+async function loadEditorDraft(
+  workspaceKey: string,
+): Promise<EditorDraftEntry | null> {
+  if (!isTauriRuntimeAvailable) {
+    return null;
+  }
+
+  return safeInvoke<EditorDraftEntry | null>("load_editor_draft", { workspaceKey });
+}
+
+async function runCancellationProbe(
+  request: CancellationProbeRequest,
+): Promise<CancellationProbeResult> {
+  if (!isTauriRuntimeAvailable) {
+    return {
+      engine: request.profile.engine,
+      supported: request.profile.engine === "postgresql",
+      cancelled: request.profile.engine === "postgresql",
+      strategy:
+        request.profile.engine === "postgresql"
+          ? "pg_cancel_backend"
+          : "KILL QUERY",
+      probeSql:
+        request.profile.engine === "postgresql"
+          ? "select pg_sleep(10)"
+          : "select sleep(10)",
+      notes: ["Preview-only cancellation probe response"],
+    };
+  }
+
+  return safeInvoke<CancellationProbeResult>("run_cancellation_probe", { request });
+}
+
 export {
   executeSql,
   fetchMetadata,
@@ -299,6 +353,9 @@ export {
   getHealthCheck,
   isTauriRuntimeAvailable,
   listConnectionProfiles,
+  loadEditorDraft,
+  runCancellationProbe,
+  saveEditorDraft,
   saveConnectionProfile,
   testConnection,
 };

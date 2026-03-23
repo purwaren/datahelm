@@ -2,8 +2,9 @@ mod mysql;
 mod postgres;
 
 use crate::contracts::{
-    ConnectionTestRequest, ConnectionTestResult, DatabaseEngine, MetadataFetchRequest,
-    MetadataFetchResult, QueryExecutionResult, SqlExecutionRequest,
+    CancellationProbeRequest, CancellationProbeResult, ConnectionTestRequest,
+    ConnectionTestResult, DatabaseEngine, MetadataFetchRequest, MetadataFetchResult,
+    QueryExecutionResult, SqlExecutionRequest,
 };
 
 pub fn normalization_note() -> &'static str {
@@ -34,5 +35,14 @@ pub async fn execute_sql(
     match request.profile.engine {
         DatabaseEngine::PostgreSql => postgres::execute_sql(request).await,
         DatabaseEngine::MySql => mysql::execute_sql(request).await,
+    }
+}
+
+pub async fn run_cancellation_probe(
+    request: CancellationProbeRequest,
+) -> Result<CancellationProbeResult, String> {
+    match request.profile.engine {
+        DatabaseEngine::PostgreSql => postgres::run_cancellation_probe(request).await,
+        DatabaseEngine::MySql => mysql::run_cancellation_probe(request).await,
     }
 }

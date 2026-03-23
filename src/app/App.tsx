@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   executeSql,
   fetchMetadata,
@@ -7,10 +7,14 @@ import {
   getHealthCheck,
   isTauriRuntimeAvailable,
   listConnectionProfiles,
+  loadEditorDraft,
+  runCancellationProbe,
+  saveEditorDraft,
   saveConnectionProfile,
   testConnection,
 } from "../api/tauri-client";
 import type {
+  CancellationProbeResult,
   ConnectionProfile,
   ConnectionTestResult,
   DatabaseEngine,
@@ -45,11 +49,14 @@ const defaultConnectionForm: ConnectionFormState = {
   tlsMode: "prefer",
 };
 
+const sqlWorkspaceKey = "sql-editor-main";
+
 function App() {
   const [form, setForm] = useState<ConnectionFormState>(defaultConnectionForm);
   const [sqlText, setSqlText] = useState(
     "select current_database() as database_name;",
   );
+  const draftHydratedRef = useRef(false);
   const healthQuery = useQuery({
     queryKey: ["health-check"],
     queryFn: getHealthCheck,
@@ -62,6 +69,10 @@ function App() {
   const savedProfilesQuery = useQuery({
     queryKey: ["saved-profiles"],
     queryFn: listConnectionProfiles,
+  });
+  const draftQuery = useQuery({
+    queryKey: ["editor-draft", sqlWorkspaceKey],
+    queryFn: () => loadEditorDraft(sqlWorkspaceKey),
   });
 
   const health = healthQuery.data;
@@ -101,6 +112,22 @@ function App() {
         sql: sqlText,
         rowLimit: 100,
       }),
+  });
+  const cancellationProbeMutation = useMutation({
+    mutationFn: (): Promise<CancellationProbeResult> =>
+      runCancellationProbe({
+        profile: toConnectionProfile(form),
+        password: form.password || undefined,
+      }),
+  });
+  const saveDraftMutation = useMutation({
+    mutationFn: (request: {
+      workspaceKey: string;
+      engine?: DatabaseEngine;
+      connectionProfileName?: string;
+      databaseName?: string;
+      sqlText: string;
+    }) => saveEditorDraft(request),
   });
   const submitLabel = useMemo(
     () =>
@@ -143,6 +170,50 @@ function App() {
     executeSqlMutation.mutate();
   }
 
+  function onRunCancellationProbe() {
+    cancellationProbeMutation.mutate();
+  }
+
+  useEffect(() => {
+    if (draftHydratedRef.current) {
+      return;
+    }
+
+    if (draftQuery.data) {
+      setSqlText(draftQuery.data.sqlText);
+    }
+
+    if (!draftQuery.isLoading) {
+      draftHydratedRef.current = true;
+    }
+  }, [draftQuery.data, draftQuery.isLoading]);
+
+  useEffect(() => {
+    if (!draftHydratedRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void saveDraftMutation.mutate({
+        workspaceKey: sqlWorkspaceKey,
+        engine: form.engine,
+        connectionProfileName: form.name,
+        databaseName: form.defaultDatabase || undefined,
+        sqlText,
+      });
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    form.defaultDatabase,
+    form.engine,
+    form.name,
+    saveDraftMutation,
+    sqlText,
+  ]);
+
   return (
     <main className="page-shell">
       <section className="hero">
@@ -164,6 +235,16 @@ function App() {
             disabled={executeSqlMutation.isPending}
           >
             {executeSqlMutation.isPending ? "Running SQL…" : "Run SQL"}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={onRunCancellationProbe}
+            disabled={cancellationProbeMutation.isPending}
+          >
+            {cancellationProbeMutation.isPending
+              ? "Running cancellation probe…"
+              : "Run cancellation probe"}
           </button>
         </div>
       </section>
@@ -606,6 +687,13 @@ function App() {
         <p className="kicker">SP2-01 / SP2-02</p>
         <h2>SQL execution baseline</h2>
         <div className="sql-stack">
+          <div className="pill-row">
+            <span className="pill">workspace {sqlWorkspaceKey}</span>
+            <span className="pill">result limit 100 rows</span>
+            {draftQuery.data?.updatedAt && (
+              <span className="pill">draft restored {draftQuery.data.updatedAt}</span>
+            )}
+          </div>
           <textarea
             className="sql-editor"
             value={sqlText}
@@ -620,7 +708,20 @@ function App() {
             >
               {executeSqlMutation.isPending ? "Running SQL…" : "Run current statement"}
             </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={onRunCancellationProbe}
+              disabled={cancellationProbeMutation.isPending}
+            >
+              {cancellationProbeMutation.isPending
+                ? "Running cancellation probe…"
+                : "Run cancellation probe"}
+            </button>
           </div>
+          {saveDraftMutation.data && (
+            <p className="muted">Draft saved at {saveDraftMutation.data.updatedAt}</p>
+          )}
           {executeSqlMutation.isError ? (
             <p className="muted">
               {(executeSqlMutation.error as Error).message}
@@ -683,6 +784,42 @@ function App() {
               No SQL run yet. This surface will drive the query/results loop for
               the next spike phase.
             </p>
+          )}
+          {cancellationProbeMutation.data && (
+            <>
+              <div className="pill-row">
+                <span className="pill">
+                  strategy {cancellationProbeMutation.data.strategy}
+                </span>
+                <span className="pill">
+                  supported {cancellationProbeMutation.data.supported ? "yes" : "no"}
+                </span>
+                <span className="pill">
+                  cancelled {cancellationProbeMutation.data.cancelled ? "yes" : "no"}
+                </span>
+              </div>
+              <p className="muted">
+                Probe SQL:{" "}
+                <span className="mono">
+                  {cancellationProbeMutation.data.probeSql}
+                </span>
+              </p>
+              {cancellationProbeMutation.data.observedError && (
+                <p className="muted">
+                  Observed error:{" "}
+                  <span className="mono">
+                    {cancellationProbeMutation.data.observedError}
+                  </span>
+                </p>
+              )}
+              <div className="pill-row">
+                {cancellationProbeMutation.data.notes.map((note) => (
+                  <span key={note} className="pill">
+                    {note}
+                  </span>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </section>
