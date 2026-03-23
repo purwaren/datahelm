@@ -26,9 +26,33 @@ async function safeInvoke<T>(
   try {
     return await invoke<T>(command, args);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown backend command error";
+    const message = extractInvokeErrorMessage(error);
     throw new Error(message);
+  }
+}
+
+function extractInvokeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown backend command error";
   }
 }
 
