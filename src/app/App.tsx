@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  deleteConnectionProfile,
   executeSql,
   fetchMetadata,
   getBootstrapState,
@@ -18,8 +19,12 @@ import type {
   ConnectionProfile,
   ConnectionTestResult,
   DatabaseEngine,
+  MetadataDetail,
   MetadataFetchResult,
+  MetadataObject,
+  QueryExecutionResult,
   SavedConnectionProfile,
+  SessionContext,
   TlsMode,
 } from "../shared/contracts";
 
@@ -34,6 +39,17 @@ interface ConnectionFormState {
   environmentLabel: string;
   readOnly: boolean;
   tlsMode: TlsMode;
+  secretRef?: string;
+}
+
+interface ConnectionAttemptInput {
+  profile: ConnectionProfile;
+  password?: string;
+}
+
+interface DeleteProfileInput {
+  profileName: string;
+  secretRef?: string;
 }
 
 const defaultConnectionForm: ConnectionFormState = {
@@ -56,12 +72,21 @@ function App() {
   const [sqlText, setSqlText] = useState(
     "select current_database() as database_name;",
   );
+  const [activeConnection, setActiveConnection] =
+    useState<ConnectionAttemptInput | null>(null);
+  const [activeSession, setActiveSession] = useState<SessionContext | null>(null);
+  const [metadataResult, setMetadataResult] =
+    useState<MetadataFetchResult | null>(null);
+  const [selectedExplorerObject, setSelectedExplorerObject] =
+    useState<MetadataObject | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const draftHydratedRef = useRef(false);
+  const lastSavedDraftFingerprintRef = useRef<string | null>(null);
+
   const healthQuery = useQuery({
     queryKey: ["health-check"],
     queryFn: getHealthCheck,
   });
-
   const bootstrapQuery = useQuery({
     queryKey: ["bootstrap-state"],
     queryFn: getBootstrapState,
@@ -75,51 +100,122 @@ function App() {
     queryFn: () => loadEditorDraft(sqlWorkspaceKey),
   });
 
-  const health = healthQuery.data;
-  const bootstrap = bootstrapQuery.data;
   const savedProfiles = savedProfilesQuery.data ?? [];
-  const connectionMutation = useMutation({
-    mutationFn: async (): Promise<ConnectionTestResult> => {
-      return testConnection({
-        profile: toConnectionProfile(form),
-        password: form.password || undefined,
+  const activeProfile = activeConnection?.profile ?? null;
+  const canUseConnectedWorkspace = Boolean(activeConnection && activeSession);
+
+  const metadataMutation = useMutation({
+    mutationFn: async (request: ConnectionAttemptInput & { target?: MetadataObject }) =>
+      fetchMetadata(request),
+    onSuccess: (result, request) => {
+      setMetadataResult(result);
+
+      if (request.target) {
+        setSelectedExplorerObject(request.target);
+        return;
+      }
+
+      setSelectedExplorerObject((current) => {
+        if (!current) {
+          return null;
+        }
+
+        return result.explorer.find((item) => isSameMetadataObject(item, current)) ?? null;
       });
     },
   });
-  const metadataMutation = useMutation({
-    mutationFn: async (): Promise<MetadataFetchResult> =>
-      fetchMetadata({
-        profile: toConnectionProfile(form),
-        password: form.password || undefined,
-      }),
+
+  const connectionMutation = useMutation({
+    mutationFn: async (
+      request: ConnectionAttemptInput,
+    ): Promise<ConnectionTestResult> => testConnection(request),
+    onSuccess: (result, request) => {
+      const resolvedProfile: ConnectionProfile = {
+        ...request.profile,
+        defaultDatabase: result.databaseName ?? request.profile.defaultDatabase,
+      };
+
+      setActiveConnection({
+        profile: resolvedProfile,
+        password: request.password,
+      });
+      setActiveSession({
+        ...result.session,
+        database: result.databaseName ?? result.session.database,
+      });
+      setMetadataResult(null);
+      setSelectedExplorerObject(null);
+      setForm((current) => ({
+        ...current,
+        ...toFormState(resolvedProfile),
+        password: current.password,
+      }));
+
+      metadataMutation.mutate({
+        profile: resolvedProfile,
+        password: request.password,
+      });
+    },
   });
+
   const saveProfileMutation = useMutation({
     mutationFn: async (): Promise<SavedConnectionProfile> =>
       saveConnectionProfile({
         profile: toConnectionProfile(form),
         password: form.password || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (savedProfile) => {
       void savedProfilesQuery.refetch();
       void bootstrapQuery.refetch();
+      setForm((current) => ({
+        ...current,
+        secretRef: savedProfile.profile.secretRef,
+        password: "",
+      }));
+
+      setActiveConnection((current) =>
+        current && current.profile.name === savedProfile.profile.name
+          ? {
+              profile: savedProfile.profile,
+              password: current.password,
+            }
+          : current,
+      );
     },
   });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: async (input: DeleteProfileInput) =>
+      deleteConnectionProfile(input.profileName, input.secretRef),
+    onSuccess: (_, variables) => {
+      setPendingDelete(null);
+      void savedProfilesQuery.refetch();
+
+      if (activeConnection?.profile.name === variables.profileName) {
+        disconnectWorkspace();
+      }
+
+      setForm((current) =>
+        current.name === variables.profileName ? defaultConnectionForm : current,
+      );
+    },
+  });
+
   const executeSqlMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (request: ConnectionAttemptInput) =>
       executeSql({
-        profile: toConnectionProfile(form),
-        password: form.password || undefined,
+        profile: request.profile,
+        password: request.password,
         sql: sqlText,
         rowLimit: 100,
       }),
   });
+
   const cancellationProbeMutation = useMutation({
-    mutationFn: (): Promise<CancellationProbeResult> =>
-      runCancellationProbe({
-        profile: toConnectionProfile(form),
-        password: form.password || undefined,
-      }),
+    mutationFn: (request: ConnectionAttemptInput): Promise<CancellationProbeResult> =>
+      runCancellationProbe(request),
   });
+
   const saveDraftMutation = useMutation({
     mutationFn: (request: {
       workspaceKey: string;
@@ -129,13 +225,40 @@ function App() {
       sqlText: string;
     }) => saveEditorDraft(request),
   });
+
   const submitLabel = useMemo(
     () =>
       connectionMutation.isPending
-        ? "Testing connection…"
-        : `Test ${form.engine === "postgresql" ? "PostgreSQL" : "MySQL"}`,
+        ? "Connecting…"
+        : `Connect to ${form.engine === "postgresql" ? "PostgreSQL" : "MySQL"}`,
     [connectionMutation.isPending, form.engine],
   );
+
+  const groupedExplorer = useMemo(
+    () => groupExplorerObjects(metadataResult?.explorer ?? []),
+    [metadataResult?.explorer],
+  );
+
+  const selectedDetail = useMemo(
+    () =>
+      metadataResult?.detail &&
+      selectedExplorerObject &&
+      isSameMetadataObject(metadataResult.detail.target, selectedExplorerObject)
+        ? metadataResult.detail
+        : null,
+    [metadataResult?.detail, selectedExplorerObject],
+  );
+
+  const sessionTone = getSessionTone(activeSession?.environmentLabel);
+  const connectionError = connectionMutation.isError
+    ? formatConnectionError(connectionMutation.error as Error)
+    : null;
+  const metadataError = metadataMutation.isError
+    ? (metadataMutation.error as Error).message
+    : null;
+  const sqlError = executeSqlMutation.isError
+    ? (executeSqlMutation.error as Error).message
+    : null;
 
   function updateForm<K extends keyof ConnectionFormState>(
     key: K,
@@ -143,35 +266,97 @@ function App() {
   ) {
     setForm((current) => {
       const next = { ...current, [key]: value };
+
       if (key === "engine") {
         const engine = value as DatabaseEngine;
         next.port = engine === "postgresql" ? 5432 : 3306;
         next.defaultDatabase = engine === "postgresql" ? "postgres" : "mysql";
         next.name = engine === "postgresql" ? "Local PostgreSQL" : "Local MySQL";
+        next.secretRef = undefined;
       }
+
       return next;
     });
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    connectionMutation.mutate();
+    connectionMutation.mutate(buildConnectionAttempt(form));
   }
 
   function onSaveProfile() {
     saveProfileMutation.mutate();
   }
 
-  function onFetchMetadata() {
-    metadataMutation.mutate();
-  }
-
   function onExecuteSql() {
-    executeSqlMutation.mutate();
+    if (!activeConnection) {
+      return;
+    }
+
+    executeSqlMutation.mutate(activeConnection);
   }
 
   function onRunCancellationProbe() {
-    cancellationProbeMutation.mutate();
+    if (!activeConnection) {
+      return;
+    }
+
+    cancellationProbeMutation.mutate(activeConnection);
+  }
+
+  function onRefreshMetadata() {
+    if (!activeConnection) {
+      return;
+    }
+
+    metadataMutation.mutate({
+      ...activeConnection,
+      target: getFetchableTarget(selectedExplorerObject),
+    });
+  }
+
+  function onSelectExplorerObject(target: MetadataObject) {
+    setSelectedExplorerObject(target);
+
+    if (!activeConnection) {
+      return;
+    }
+
+    const fetchableTarget = getFetchableTarget(target);
+    if (!fetchableTarget) {
+      return;
+    }
+
+    metadataMutation.mutate({
+      ...activeConnection,
+      target: fetchableTarget,
+    });
+  }
+
+  function onOpenSavedProfile(savedProfile: SavedConnectionProfile) {
+    const nextForm = toFormState(savedProfile.profile);
+    setForm(nextForm);
+    connectionMutation.mutate({
+      profile: savedProfile.profile,
+    });
+  }
+
+  function onEditSavedProfile(savedProfile: SavedConnectionProfile) {
+    setForm(toFormState(savedProfile.profile));
+  }
+
+  function onConfirmDelete(savedProfile: SavedConnectionProfile) {
+    deleteProfileMutation.mutate({
+      profileName: savedProfile.profile.name,
+      secretRef: savedProfile.profile.secretRef,
+    });
+  }
+
+  function disconnectWorkspace() {
+    setActiveConnection(null);
+    setActiveSession(null);
+    setMetadataResult(null);
+    setSelectedExplorerObject(null);
   }
 
   useEffect(() => {
@@ -181,6 +366,13 @@ function App() {
 
     if (draftQuery.data) {
       setSqlText(draftQuery.data.sqlText);
+      lastSavedDraftFingerprintRef.current = createDraftFingerprint({
+        workspaceKey: sqlWorkspaceKey,
+        engine: draftQuery.data.engine,
+        connectionProfileName: draftQuery.data.connectionProfileName,
+        databaseName: draftQuery.data.databaseName,
+        sqlText: draftQuery.data.sqlText,
+      });
     }
 
     if (!draftQuery.isLoading) {
@@ -193,13 +385,24 @@ function App() {
       return;
     }
 
+    const draftPayload = {
+      workspaceKey: sqlWorkspaceKey,
+      engine: activeProfile?.engine ?? form.engine,
+      connectionProfileName: activeProfile?.name ?? form.name,
+      databaseName: activeSession?.database ?? (form.defaultDatabase || undefined),
+      sqlText,
+    };
+    const nextFingerprint = createDraftFingerprint(draftPayload);
+
+    if (lastSavedDraftFingerprintRef.current === nextFingerprint) {
+      return;
+    }
+
     const timeoutId = window.setTimeout(() => {
-      void saveDraftMutation.mutate({
-        workspaceKey: sqlWorkspaceKey,
-        engine: form.engine,
-        connectionProfileName: form.name,
-        databaseName: form.defaultDatabase || undefined,
-        sqlText,
+      saveDraftMutation.mutate(draftPayload, {
+        onSuccess: () => {
+          lastSavedDraftFingerprintRef.current = nextFingerprint;
+        },
       });
     }, 600);
 
@@ -207,45 +410,72 @@ function App() {
       window.clearTimeout(timeoutId);
     };
   }, [
+    activeProfile?.engine,
+    activeProfile?.name,
+    activeSession?.database,
     form.defaultDatabase,
     form.engine,
     form.name,
-    saveDraftMutation,
     sqlText,
   ]);
 
   return (
     <main className="page-shell">
       <section className="hero">
-        <span className="eyebrow">DataHelm / M0 Bootstrap</span>
-        <h1>Connection-first desktop shell for the DataHelm spike cycle.</h1>
+        <span className="eyebrow">DataHelm / M1 Workspace</span>
+        <h1>Connection-aware desktop shell for PostgreSQL and MySQL work.</h1>
         <p>
-          This workspace implements the first two `M0` tickets: repository
-          bootstrap and shared spike contracts. The shell is intentionally small,
-          but the module boundaries already match the approved technical design.
+          This milestone moves the spike shell into a usable workspace: saved
+          connections, a persistent session bar, and explorer navigation that
+          reflects the connected engine.
         </p>
         <div className="hero-actions">
-          <button type="button" disabled>
-            New Connection
+          <button type="button" onClick={onRefreshMetadata} disabled={!canUseConnectedWorkspace}>
+            {metadataMutation.isPending ? "Refreshing explorer…" : "Refresh explorer"}
           </button>
           <button
             type="button"
             className="secondary"
-            onClick={onExecuteSql}
-            disabled={executeSqlMutation.isPending}
+            onClick={disconnectWorkspace}
+            disabled={!activeSession}
           >
-            {executeSqlMutation.isPending ? "Running SQL…" : "Run SQL"}
+            Disconnect workspace
           </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={onRunCancellationProbe}
-            disabled={cancellationProbeMutation.isPending}
+        </div>
+      </section>
+
+      <section className={`session-bar ${sessionTone}`}>
+        <div className="session-summary">
+          <span className={`status-chip ${activeSession ? "connected" : "disconnected"}`}>
+            {activeSession ? "Connected" : "Disconnected"}
+          </span>
+          <div>
+            <strong>
+              {activeSession?.profileName ?? "No active connection"}
+            </strong>
+            <p className="muted">
+              {activeSession
+                ? "Use the saved profile list or connection form to reconnect or switch targets."
+                : "Pick a saved profile or submit the connection form to open a workspace."}
+            </p>
+          </div>
+        </div>
+        <div className="session-badges">
+          <span className="session-badge">
+            Engine <span className="mono">{activeSession?.engine ?? "none"}</span>
+          </span>
+          <span className="session-badge">
+            Database <span className="mono">{activeSession?.database ?? "not connected"}</span>
+          </span>
+          <span className="session-badge">
+            Environment{" "}
+            <span className="mono">{activeSession?.environmentLabel ?? "unspecified"}</span>
+          </span>
+          <span
+            className={`session-badge ${activeSession?.isReadOnly ? "badge-safe" : "badge-warn"}`}
           >
-            {cancellationProbeMutation.isPending
-              ? "Running cancellation probe…"
-              : "Run cancellation probe"}
-          </button>
+            {activeSession?.isReadOnly ? "Read-only session" : "Writable session"}
+          </span>
         </div>
       </section>
 
@@ -253,119 +483,26 @@ function App() {
         <section className="card error-banner">
           <h2>Browser Preview Mode</h2>
           <p>
-            The typed bridge is ready, but Tauri commands are unavailable in a
-            plain browser preview. Run `npm run tauri dev` after dependency
-            installation to exercise the Rust backend commands.
+            The frontend is running, but backend commands are only available in
+            Tauri. Use `npm run tauri dev` to exercise real database connections.
           </p>
         </section>
       )}
 
-      <section className="grid two-up">
+      <section className="grid workspace-grid">
         <article className="card">
-          <p className="kicker">Workspace State</p>
-          <h2>Bootstrap health</h2>
-          {healthQuery.isLoading ? (
-            <p>Checking bridge health…</p>
-          ) : healthQuery.isError ? (
-            <p className="muted">Unable to load health status from the backend.</p>
-          ) : health ? (
-            <>
-              <div className="status">
-                <span className="status-dot" />
-                {health.status}
-              </div>
-              <p className="muted">
-                Runtime: <span className="mono">{health.runtime}</span>
-              </p>
-              <p className="muted">
-                App version:{" "}
-                <span className="mono">{health.appVersion}</span>
-              </p>
-            </>
-          ) : (
-            <p className="muted">No health status available yet.</p>
-          )}
-        </article>
+          <div className="section-heading">
+            <div>
+              <p className="kicker">M1-01 / M1-02</p>
+              <h2>Connection workspace</h2>
+            </div>
+            {healthQuery.data && (
+              <span className="status-chip connected">
+                {healthQuery.data.runtime} / {healthQuery.data.status}
+              </span>
+            )}
+          </div>
 
-        <article className="card">
-          <p className="kicker">M0 Tickets</p>
-          <h2>Next recommended execution flow</h2>
-          <ol className="list">
-            <li>`M0-01` repository bootstrap</li>
-            <li>`M0-02` shared contracts</li>
-            <li>`SP1-01`, `SP1-02`, `SP3-01`</li>
-            <li>`SP1-03`, `SP3-02`</li>
-            <li>`SP2-01`, `SP2-02`</li>
-          </ol>
-        </article>
-      </section>
-
-      <section className="grid two-up" style={{ marginTop: "1rem" }}>
-        <article className="card">
-          <p className="kicker">Frontend / Backend Boundary</p>
-          <h2>Shared contracts ready for spikes</h2>
-          {bootstrapQuery.isLoading ? (
-            <p>Loading bootstrap contracts…</p>
-          ) : bootstrapQuery.isError || !bootstrap ? (
-            <p className="muted">
-              Bootstrap contracts could not be loaded from the backend.
-            </p>
-          ) : (
-            <>
-              <div className="pill-row" style={{ marginBottom: "1rem" }}>
-                {bootstrap.modules.map((module) => (
-                  <span className="pill" key={module}>
-                    {module}
-                  </span>
-                ))}
-              </div>
-              <p className="muted">
-                Sample connection:{" "}
-                <span className="mono">{bootstrap.sampleProfile.name}</span> /{" "}
-                {bootstrap.sampleProfile.engine}
-              </p>
-              <p className="muted">
-                Sample session:{" "}
-                <span className="mono">{bootstrap.sampleSession.sessionId}</span>
-              </p>
-            </>
-          )}
-        </article>
-
-        <article className="card">
-          <p className="kicker">Local Store</p>
-          <h2>SQLite baseline ready</h2>
-          {bootstrap ? (
-            <>
-              <p className="muted">
-                Path: <span className="mono">{bootstrap.localStore.dbPath}</span>
-              </p>
-              <p className="muted">
-                Schema version:{" "}
-                <span className="mono">{bootstrap.localStore.schemaVersion}</span>
-              </p>
-              <p className="muted">
-                Keychain service:{" "}
-                <span className="mono">{bootstrap.localStore.keychainService}</span>
-              </p>
-              <div className="pill-row">
-                {bootstrap.localStore.initializedEntities.map((entity) => (
-                  <span key={entity} className="pill">
-                    {entity}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="muted">Local store status will appear after bootstrap.</p>
-          )}
-        </article>
-      </section>
-
-      <section className="grid two-up" style={{ marginTop: "1rem" }}>
-        <article className="card">
-          <p className="kicker">SP1-01 / SP1-02</p>
-          <h2>Connection test harness</h2>
           <form className="connection-form" onSubmit={onSubmit}>
             <label>
               Engine
@@ -418,6 +555,7 @@ function App() {
                 <input
                   type="password"
                   value={form.password}
+                  placeholder={form.secretRef ? "Stored in keychain" : ""}
                   onChange={(event) => updateForm("password", event.target.value)}
                 />
               </label>
@@ -469,227 +607,289 @@ function App() {
                 Read-only mode
               </label>
             </div>
-            <button type="submit" disabled={connectionMutation.isPending}>
-              {submitLabel}
-            </button>
+
             <div className="hero-actions">
+              <button type="submit" disabled={connectionMutation.isPending}>
+                {submitLabel}
+              </button>
               <button
                 type="button"
                 className="secondary"
                 onClick={onSaveProfile}
                 disabled={saveProfileMutation.isPending}
               >
-                {saveProfileMutation.isPending ? "Saving profile…" : "Save profile"}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={onFetchMetadata}
-                disabled={metadataMutation.isPending}
-              >
-                {metadataMutation.isPending
-                  ? "Loading metadata…"
-                  : "Fetch metadata baseline"}
+                {saveProfileMutation.isPending ? "Saving…" : "Save profile"}
               </button>
             </div>
-            {saveProfileMutation.isSuccess && (
+          </form>
+
+          <div className="stack-sm">
+            {form.secretRef && (
               <p className="muted">
-                Saved profile <span className="mono">{saveProfileMutation.data.profile.name}</span>
-                {saveProfileMutation.data.hasSecret ? " with keychain secret." : "."}
+                Stored secret: <span className="mono">{form.secretRef}</span>
               </p>
             )}
+            {connectionError && (
+              <p className="inline-banner inline-banner-error">{connectionError}</p>
+            )}
             {saveProfileMutation.isError && (
-              <p className="muted">
+              <p className="inline-banner inline-banner-error">
                 {(saveProfileMutation.error as Error).message}
               </p>
             )}
-          </form>
+            {saveProfileMutation.isSuccess && (
+              <p className="inline-banner inline-banner-success">
+                Saved profile <span className="mono">{saveProfileMutation.data.profile.name}</span>
+                {saveProfileMutation.data.hasSecret ? " with keychain-backed credentials." : "."}
+              </p>
+            )}
+          </div>
         </article>
 
         <article className="card">
-          <p className="kicker">Normalized result</p>
-          <h2>Connection outcome</h2>
-          {connectionMutation.isPending ? (
-            <p>Attempting connection…</p>
-          ) : connectionMutation.isError ? (
-            <p className="muted">
-              {(connectionMutation.error as Error).message}
+          <div className="section-heading">
+            <div>
+              <p className="kicker">M1-02</p>
+              <h2>Saved connections</h2>
+            </div>
+            <span className="session-badge">
+              {savedProfiles.length} stored profile{savedProfiles.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          {savedProfilesQuery.isLoading ? (
+            <p>Loading saved profiles…</p>
+          ) : savedProfilesQuery.isError ? (
+            <p className="inline-banner inline-banner-error">
+              {(savedProfilesQuery.error as Error).message}
             </p>
-          ) : connectionMutation.data ? (
-            <>
-              <div className="status">
-                <span className="status-dot" />
-                {connectionMutation.data.success
-                  ? "Connection succeeded"
-                  : "Connection failed"}
-              </div>
-              <p className="muted">
-                Engine:{" "}
-                <span className="mono">{connectionMutation.data.engine}</span>
-              </p>
-              <p className="muted">
-                Server version:{" "}
-                <span className="mono">
-                  {connectionMutation.data.serverVersion ?? "Unavailable"}
-                </span>
-              </p>
-              <p className="muted">
-                Database:{" "}
-                <span className="mono">
-                  {connectionMutation.data.databaseName ?? "Unavailable"}
-                </span>
-              </p>
-              <p className="muted">
-                Latency:{" "}
-                <span className="mono">
-                  {connectionMutation.data.latencyMs} ms
-                </span>
-              </p>
-              <div className="pill-row">
-                {connectionMutation.data.notes.map((note) => (
-                  <span className="pill" key={note}>
-                    {note}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : (
+          ) : savedProfiles.length === 0 ? (
             <p className="muted">
-              No connection attempt yet. Submit the form to exercise the baseline
-              adapter path.
+              No saved profiles yet. Save the current connection form to create a
+              repeatable connection workflow.
+            </p>
+          ) : (
+            <div className="profile-list">
+              {savedProfiles.map((savedProfile) => {
+                const isPendingDelete = pendingDelete === savedProfile.profile.name;
+                return (
+                  <article key={savedProfile.profile.name} className="profile-card">
+                    <div className="profile-card-header">
+                      <div>
+                        <h3>{savedProfile.profile.name}</h3>
+                        <p className="muted">
+                          {savedProfile.profile.engine} /{" "}
+                          {savedProfile.profile.defaultDatabase ?? "no database"}
+                        </p>
+                      </div>
+                      <span
+                        className={`session-badge ${
+                          savedProfile.profile.readOnly ? "badge-safe" : "badge-warn"
+                        }`}
+                      >
+                        {savedProfile.profile.readOnly ? "read-only" : "writable"}
+                      </span>
+                    </div>
+                    <p className="muted">
+                      {savedProfile.profile.host}:{savedProfile.profile.port} as{" "}
+                      <span className="mono">{savedProfile.profile.username}</span>
+                    </p>
+                    <div className="pill-row">
+                      <span className="pill">
+                        env {savedProfile.profile.environmentLabel ?? "unspecified"}
+                      </span>
+                      <span className="pill">
+                        secret {savedProfile.hasSecret ? "stored" : "not stored"}
+                      </span>
+                      <span className="pill">updated {savedProfile.updatedAt}</span>
+                    </div>
+                    <div className="hero-actions">
+                      <button type="button" onClick={() => onOpenSavedProfile(savedProfile)}>
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => onEditSavedProfile(savedProfile)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary danger-button"
+                        onClick={() =>
+                          setPendingDelete((current) =>
+                            current === savedProfile.profile.name
+                              ? null
+                              : savedProfile.profile.name,
+                          )
+                        }
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {isPendingDelete && (
+                      <div className="confirm-strip">
+                        <span>Delete this saved profile?</span>
+                        <button
+                          type="button"
+                          className="secondary danger-button"
+                          onClick={() => onConfirmDelete(savedProfile)}
+                          disabled={deleteProfileMutation.isPending}
+                        >
+                          {deleteProfileMutation.isPending ? "Deleting…" : "Confirm delete"}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => setPendingDelete(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          {deleteProfileMutation.isError && (
+            <p className="inline-banner inline-banner-error">
+              {(deleteProfileMutation.error as Error).message}
             </p>
           )}
         </article>
       </section>
 
-      <section className="grid two-up" style={{ marginTop: "1rem" }}>
+      <section className="grid workspace-grid" style={{ marginTop: "1rem" }}>
         <article className="card">
-          <p className="kicker">SP1-03</p>
-          <h2>Metadata normalization baseline</h2>
-          {metadataMutation.isPending ? (
-            <p>Loading explorer and detail metadata…</p>
-          ) : metadataMutation.isError ? (
-            <p className="muted">{(metadataMutation.error as Error).message}</p>
-          ) : metadataMutation.data ? (
+          <div className="section-heading">
+            <div>
+              <p className="kicker">M1-03</p>
+              <h2>Explorer navigation</h2>
+            </div>
+            <span className="session-badge">
+              {activeSession?.engine ?? "disconnected"}
+            </span>
+          </div>
+
+          {!activeSession ? (
+            <p className="muted">
+              Connect to a database to load the explorer hierarchy.
+            </p>
+          ) : metadataMutation.isPending && !metadataResult ? (
+            <p>Loading explorer metadata…</p>
+          ) : metadataError ? (
+            <p className="inline-banner inline-banner-error">{metadataError}</p>
+          ) : !metadataResult || metadataResult.explorer.length === 0 ? (
+            <p className="muted">
+              No explorer objects were returned for this connection. This can
+              happen with empty databases or limited permissions.
+            </p>
+          ) : (
             <>
               <p className="muted">
-                Explorer objects:{" "}
-                <span className="mono">{metadataMutation.data.explorer.length}</span>
+                Engine-specific hierarchy is normalized, but still reflects real
+                platform differences: PostgreSQL shows schemas, while MySQL
+                navigates database objects directly.
               </p>
-              <div className="pill-row" style={{ marginBottom: "1rem" }}>
-                {metadataMutation.data.notes.map((note) => (
-                  <span className="pill" key={note}>
-                    {note}
-                  </span>
+              <div className="explorer-groups">
+                {groupedExplorer.map((group) => (
+                  <section key={group.label} className="explorer-group">
+                    <h3>{group.label}</h3>
+                    <div className="explorer-list">
+                      {group.items.map((object) => {
+                        const selected =
+                          selectedExplorerObject &&
+                          isSameMetadataObject(selectedExplorerObject, object);
+
+                        return (
+                          <button
+                            key={metadataObjectKey(object)}
+                            type="button"
+                            className={`explorer-item ${selected ? "selected" : ""}`}
+                            onClick={() => onSelectExplorerObject(object)}
+                          >
+                            <span>{object.name}</span>
+                            <span className="muted">
+                              {describeObjectScope(object)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
                 ))}
               </div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Kind</th>
-                    <th>Name</th>
-                    <th>Scope</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {metadataMutation.data.explorer.slice(0, 8).map((object) => (
-                    <tr key={`${object.kind}:${object.database ?? ""}:${object.schema ?? ""}:${object.name}`}>
-                      <td>{object.kind}</td>
-                      <td>{object.name}</td>
-                      <td>{object.schema ?? object.database ?? "global"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {metadataMutation.data.detail && (
-                <>
-                  <p className="muted" style={{ marginTop: "1rem" }}>
-                    Detail target:{" "}
-                    <span className="mono">
-                      {metadataMutation.data.detail.target.name}
-                    </span>
-                  </p>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Column</th>
-                        <th>Type</th>
-                        <th>Nullable</th>
-                        <th>Default</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metadataMutation.data.detail.columns.map((column) => (
-                        <tr key={column.name}>
-                          <td>{column.name}</td>
-                          <td>{column.dataType}</td>
-                          <td>{column.nullable ? "yes" : "no"}</td>
-                          <td>{column.defaultValue ?? "none"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
             </>
-          ) : (
-            <p className="muted">
-              No metadata request yet. Use the connection form to fetch a normalized
-              explorer/detail payload.
-            </p>
           )}
         </article>
 
         <article className="card">
-          <p className="kicker">SP3-02</p>
-          <h2>Saved profiles and keychain references</h2>
-          {savedProfilesQuery.isLoading ? (
-            <p>Loading saved profiles…</p>
-          ) : savedProfilesQuery.isError ? (
+          <div className="section-heading">
+            <div>
+              <p className="kicker">Selection</p>
+              <h2>Selected object</h2>
+            </div>
+            {selectedExplorerObject && (
+              <span className="session-badge">{selectedExplorerObject.kind}</span>
+            )}
+          </div>
+
+          {!selectedExplorerObject ? (
             <p className="muted">
-              {(savedProfilesQuery.error as Error).message}
+              Select a database, schema, table, or view from the explorer to
+              frame the current workspace.
             </p>
-          ) : savedProfiles.length > 0 ? (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Engine</th>
-                  <th>Secret</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {savedProfiles.map((savedProfile) => (
-                  <tr key={savedProfile.profile.name}>
-                    <td>{savedProfile.profile.name}</td>
-                    <td>{savedProfile.profile.engine}</td>
-                    <td>
-                      {savedProfile.hasSecret
-                        ? savedProfile.profile.secretRef ?? "Keychain"
-                        : "No secret"}
-                    </td>
-                    <td>{savedProfile.updatedAt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           ) : (
-            <p className="muted">
-              No saved profiles yet. Saving a profile writes the config to SQLite
-              and stores the password in the macOS keychain when provided.
-            </p>
+            <>
+              <div className="pill-row">
+                <span className="pill">{selectedExplorerObject.kind}</span>
+                <span className="pill">{describeObjectScope(selectedExplorerObject)}</span>
+              </div>
+              <p className="selection-title">
+                <span className="mono">{selectedExplorerObject.name}</span>
+              </p>
+              {selectedDetail ? (
+                <MetadataDetailTable detail={selectedDetail} />
+              ) : (
+                <p className="muted">
+                  Detail is only loaded for tables and views in this milestone.
+                </p>
+              )}
+              {metadataResult?.notes.length ? (
+                <div className="pill-row">
+                  {metadataResult.notes.map((note) => (
+                    <span key={note} className="pill">
+                      {note}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </>
           )}
         </article>
       </section>
 
       <section className="card" style={{ marginTop: "1rem" }}>
-        <p className="kicker">SP2-01 / SP2-02</p>
-        <h2>SQL execution baseline</h2>
+        <div className="section-heading">
+          <div>
+            <p className="kicker">SQL Workspace</p>
+            <h2>M0 baseline carried into M1</h2>
+          </div>
+          {bootstrapQuery.data && (
+            <span className="session-badge">
+              schema v{bootstrapQuery.data.localStore.schemaVersion}
+            </span>
+          )}
+        </div>
         <div className="sql-stack">
           <div className="pill-row">
             <span className="pill">workspace {sqlWorkspaceKey}</span>
             <span className="pill">result limit 100 rows</span>
+            <span className="pill">
+              {activeSession ? `session ${activeSession.sessionId}` : "no active session"}
+            </span>
             {draftQuery.data?.updatedAt && (
               <span className="pill">draft restored {draftQuery.data.updatedAt}</span>
             )}
@@ -704,7 +904,7 @@ function App() {
             <button
               type="button"
               onClick={onExecuteSql}
-              disabled={executeSqlMutation.isPending}
+              disabled={executeSqlMutation.isPending || !activeConnection}
             >
               {executeSqlMutation.isPending ? "Running SQL…" : "Run current statement"}
             </button>
@@ -712,162 +912,138 @@ function App() {
               type="button"
               className="secondary"
               onClick={onRunCancellationProbe}
-              disabled={cancellationProbeMutation.isPending}
+              disabled={cancellationProbeMutation.isPending || !activeConnection}
             >
               {cancellationProbeMutation.isPending
                 ? "Running cancellation probe…"
                 : "Run cancellation probe"}
             </button>
           </div>
+          {!activeConnection && (
+            <p className="muted">
+              Connect to a saved or ad hoc profile before running SQL.
+            </p>
+          )}
           {saveDraftMutation.data && (
             <p className="muted">Draft saved at {saveDraftMutation.data.updatedAt}</p>
           )}
-          {executeSqlMutation.isError ? (
-            <p className="muted">
-              {(executeSqlMutation.error as Error).message}
-            </p>
+          {sqlError ? (
+            <p className="inline-banner inline-banner-error">{sqlError}</p>
           ) : executeSqlMutation.data ? (
-            <>
-              <div className="pill-row">
-                <span className="pill">
-                  Job {executeSqlMutation.data.job.jobId}
-                </span>
-                <span className="pill">
-                  State {executeSqlMutation.data.job.state}
-                </span>
-                <span className="pill">
-                  Rows {executeSqlMutation.data.rowCount}
-                </span>
-                {executeSqlMutation.data.affectedRows !== undefined && (
-                  <span className="pill">
-                    Affected {executeSqlMutation.data.affectedRows}
-                  </span>
-                )}
-              </div>
-              <div className="pill-row" style={{ marginTop: "1rem" }}>
-                {executeSqlMutation.data.notices.map((notice) => (
-                  <span key={notice} className="pill">
-                    {notice}
-                  </span>
-                ))}
-              </div>
-              {executeSqlMutation.data.columns.length > 0 ? (
-                <table className="table" style={{ marginTop: "1rem" }}>
-                  <thead>
-                    <tr>
-                      {executeSqlMutation.data.columns.map((column) => (
-                        <th key={column.name}>
-                          {column.name}
-                          <div className="muted">{column.dataType}</div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {executeSqlMutation.data.rows.map((row, rowIndex) => (
-                      <tr key={`row-${rowIndex}`}>
-                        {row.map((value, columnIndex) => (
-                          <td key={`value-${rowIndex}-${columnIndex}`}>{value}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p className="muted" style={{ marginTop: "1rem" }}>
-                  Statement completed without a rowset.
-                </p>
-              )}
-            </>
+            <QueryResultPanel result={executeSqlMutation.data} />
           ) : (
             <p className="muted">
-              No SQL run yet. This surface will drive the query/results loop for
-              the next spike phase.
+              No SQL run yet. This surface remains available for smoke testing
+              while `M1` focuses on workspace navigation.
             </p>
           )}
           {cancellationProbeMutation.data && (
-            <>
-              <div className="pill-row">
-                <span className="pill">
-                  strategy {cancellationProbeMutation.data.strategy}
-                </span>
-                <span className="pill">
-                  supported {cancellationProbeMutation.data.supported ? "yes" : "no"}
-                </span>
-                <span className="pill">
-                  cancelled {cancellationProbeMutation.data.cancelled ? "yes" : "no"}
-                </span>
-              </div>
-              <p className="muted">
-                Probe SQL:{" "}
-                <span className="mono">
-                  {cancellationProbeMutation.data.probeSql}
-                </span>
-              </p>
-              {cancellationProbeMutation.data.observedError && (
-                <p className="muted">
-                  Observed error:{" "}
-                  <span className="mono">
-                    {cancellationProbeMutation.data.observedError}
-                  </span>
-                </p>
-              )}
-              <div className="pill-row">
-                {cancellationProbeMutation.data.notes.map((note) => (
-                  <span key={note} className="pill">
-                    {note}
-                  </span>
-                ))}
-              </div>
-            </>
+            <CancellationProbePanel result={cancellationProbeMutation.data} />
           )}
         </div>
       </section>
-
-      <section className="card" style={{ marginTop: "1rem" }}>
-        <p className="kicker">Bootstrap Snapshot</p>
-        <h2>App-facing DTO baseline</h2>
-        {bootstrap ? (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Contract</th>
-                <th>Current baseline</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>ConnectionProfile</td>
-                <td>
-                  {bootstrap.sampleProfile.engine} / {bootstrap.sampleProfile.host}:
-                  {bootstrap.sampleProfile.port}
-                </td>
-              </tr>
-              <tr>
-                <td>SessionContext</td>
-                <td>{bootstrap.sampleSession.database ?? "No database selected"}</td>
-              </tr>
-              <tr>
-                <td>CapabilityMap</td>
-                <td>{bootstrap.sampleSession.capabilityMap.notes.join(", ")}</td>
-              </tr>
-              <tr>
-                <td>QueryJob</td>
-                <td>{bootstrap.sampleQueryJob.state}</td>
-              </tr>
-              <tr>
-                <td>MetadataSnapshot</td>
-                <td>
-                  {bootstrap.sampleMetadata.explorer.length} explorer object(s)
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        ) : (
-          <p className="muted">No bootstrap snapshot loaded yet.</p>
-        )}
-      </section>
     </main>
+  );
+}
+
+function MetadataDetailTable({ detail }: { detail: MetadataDetail }) {
+  return (
+    <table className="table" style={{ marginTop: "1rem" }}>
+      <thead>
+        <tr>
+          <th>Column</th>
+          <th>Type</th>
+          <th>Nullable</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+        {detail.columns.map((column) => (
+          <tr key={column.name}>
+            <td>{column.name}</td>
+            <td>{column.dataType}</td>
+            <td>{column.nullable ? "yes" : "no"}</td>
+            <td>{column.defaultValue ?? "none"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function QueryResultPanel({ result }: { result: QueryExecutionResult }) {
+  return (
+    <>
+      <div className="pill-row">
+        <span className="pill">Job {result.job.jobId}</span>
+        <span className="pill">State {result.job.state}</span>
+        <span className="pill">Rows {result.rowCount}</span>
+        {result.affectedRows !== undefined && (
+          <span className="pill">Affected {result.affectedRows}</span>
+        )}
+      </div>
+      <div className="pill-row" style={{ marginTop: "1rem" }}>
+        {result.notices.map((notice) => (
+          <span key={notice} className="pill">
+            {notice}
+          </span>
+        ))}
+      </div>
+      {result.columns.length > 0 ? (
+        <table className="table" style={{ marginTop: "1rem" }}>
+          <thead>
+            <tr>
+              {result.columns.map((column) => (
+                <th key={column.name}>
+                  {column.name}
+                  <div className="muted">{column.dataType}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result.rows.map((row, rowIndex) => (
+              <tr key={`row-${rowIndex}`}>
+                {row.map((value, columnIndex) => (
+                  <td key={`value-${rowIndex}-${columnIndex}`}>{value}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted" style={{ marginTop: "1rem" }}>
+          Statement completed without a rowset.
+        </p>
+      )}
+    </>
+  );
+}
+
+function CancellationProbePanel({ result }: { result: CancellationProbeResult }) {
+  return (
+    <>
+      <div className="pill-row">
+        <span className="pill">strategy {result.strategy}</span>
+        <span className="pill">supported {result.supported ? "yes" : "no"}</span>
+        <span className="pill">cancelled {result.cancelled ? "yes" : "no"}</span>
+      </div>
+      <p className="muted">
+        Probe SQL: <span className="mono">{result.probeSql}</span>
+      </p>
+      {result.observedError && (
+        <p className="muted">
+          Observed error: <span className="mono">{result.observedError}</span>
+        </p>
+      )}
+      <div className="pill-row">
+        {result.notes.map((note) => (
+          <span key={note} className="pill">
+            {note}
+          </span>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -882,7 +1058,157 @@ function toConnectionProfile(form: ConnectionFormState): ConnectionProfile {
     environmentLabel: form.environmentLabel || undefined,
     readOnly: form.readOnly,
     tlsMode: form.tlsMode,
+    secretRef: form.secretRef,
   };
+}
+
+function buildConnectionAttempt(form: ConnectionFormState): ConnectionAttemptInput {
+  return {
+    profile: toConnectionProfile(form),
+    password: form.password || undefined,
+  };
+}
+
+function toFormState(profile: ConnectionProfile): ConnectionFormState {
+  return {
+    name: profile.name,
+    engine: profile.engine,
+    host: profile.host,
+    port: profile.port,
+    username: profile.username,
+    password: "",
+    defaultDatabase: profile.defaultDatabase ?? defaultDatabaseForEngine(profile.engine),
+    environmentLabel: profile.environmentLabel ?? "",
+    readOnly: profile.readOnly,
+    tlsMode: profile.tlsMode,
+    secretRef: profile.secretRef,
+  };
+}
+
+function defaultDatabaseForEngine(engine: DatabaseEngine): string {
+  return engine === "postgresql" ? "postgres" : "mysql";
+}
+
+function groupExplorerObjects(explorer: MetadataObject[]) {
+  return [
+    {
+      label: "Databases",
+      items: explorer.filter((item) => item.kind === "database"),
+    },
+    {
+      label: "Schemas",
+      items: explorer.filter((item) => item.kind === "schema"),
+    },
+    {
+      label: "Tables & Views",
+      items: explorer.filter(
+        (item) => item.kind === "table" || item.kind === "view",
+      ),
+    },
+  ].filter((group) => group.items.length > 0);
+}
+
+function getFetchableTarget(target: MetadataObject | null | undefined) {
+  if (!target) {
+    return undefined;
+  }
+
+  if (target.kind === "table" || target.kind === "view") {
+    return target;
+  }
+
+  return undefined;
+}
+
+function metadataObjectKey(object: MetadataObject): string {
+  return `${object.kind}:${object.database ?? ""}:${object.schema ?? ""}:${object.name}`;
+}
+
+function isSameMetadataObject(left: MetadataObject, right: MetadataObject): boolean {
+  return metadataObjectKey(left) === metadataObjectKey(right);
+}
+
+function describeObjectScope(object: MetadataObject): string {
+  if (object.schema && object.database) {
+    return `${object.database}.${object.schema}`;
+  }
+
+  if (object.schema) {
+    return object.schema;
+  }
+
+  if (object.database) {
+    return object.database;
+  }
+
+  return "global";
+}
+
+function getSessionTone(environmentLabel?: string): string {
+  const normalized = environmentLabel?.toLowerCase() ?? "";
+
+  if (
+    normalized.includes("prod") ||
+    normalized.includes("live") ||
+    normalized.includes("primary")
+  ) {
+    return "session-prod";
+  }
+
+  if (normalized.includes("stage") || normalized.includes("uat")) {
+    return "session-stage";
+  }
+
+  return "session-neutral";
+}
+
+function formatConnectionError(error: Error): string {
+  const message = error.message;
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("password") ||
+    normalized.includes("authentication") ||
+    normalized.includes("access denied")
+  ) {
+    return `Authentication error: ${message}`;
+  }
+
+  if (
+    normalized.includes("refused") ||
+    normalized.includes("timed out") ||
+    normalized.includes("network") ||
+    normalized.includes("dns")
+  ) {
+    return `Network error: ${message}`;
+  }
+
+  if (
+    normalized.includes("database") ||
+    normalized.includes("unknown database") ||
+    normalized.includes("does not exist") ||
+    normalized.includes("tls")
+  ) {
+    return `Configuration error: ${message}`;
+  }
+
+  return message;
+}
+
+function createDraftFingerprint(input: {
+  workspaceKey: string;
+  engine?: DatabaseEngine;
+  connectionProfileName?: string;
+  databaseName?: string;
+  sqlText: string;
+}): string {
+  return JSON.stringify([
+    input.workspaceKey,
+    input.engine ?? "",
+    input.connectionProfileName ?? "",
+    input.databaseName ?? "",
+    input.sqlText,
+  ]);
 }
 
 export { App };

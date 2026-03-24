@@ -70,6 +70,21 @@ pub fn list_connection_profiles(
 }
 
 #[tauri::command]
+pub fn delete_connection_profile(
+    state: State<'_, AppState>,
+    profile_name: String,
+    secret_ref: Option<String>,
+) -> Result<(), String> {
+    persistence::delete_connection_profile(&state.local_store().db_path, &profile_name)?;
+
+    if let Some(secret_ref) = secret_ref.as_deref() {
+        secret_store::delete_secret(secret_ref)?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn execute_sql(
     state: State<'_, AppState>,
     request: SqlExecutionRequest,

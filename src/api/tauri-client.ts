@@ -269,6 +269,20 @@ async function listConnectionProfiles(): Promise<SavedConnectionProfile[]> {
   return safeInvoke<SavedConnectionProfile[]>("list_connection_profiles");
 }
 
+async function deleteConnectionProfile(
+  profileName: string,
+  secretRef?: string,
+): Promise<void> {
+  if (!isTauriRuntimeAvailable) {
+    return;
+  }
+
+  return safeInvoke<void>("delete_connection_profile", {
+    profileName,
+    secretRef,
+  });
+}
+
 async function executeSql(
   request: SqlExecutionRequest,
 ): Promise<QueryExecutionResult> {
@@ -347,6 +361,7 @@ async function runCancellationProbe(
 }
 
 export {
+  deleteConnectionProfile,
   executeSql,
   fetchMetadata,
   getBootstrapState,

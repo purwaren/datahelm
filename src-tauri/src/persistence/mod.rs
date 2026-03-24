@@ -152,6 +152,22 @@ pub fn list_connection_profiles(db_path: &str) -> Result<Vec<SavedConnectionProf
         .map_err(|error| error.to_string())
 }
 
+pub fn delete_connection_profile(db_path: &str, profile_name: &str) -> Result<(), String> {
+    let connection = open_connection(db_path)?;
+    let deleted = connection
+        .execute(
+            "DELETE FROM connection_profiles WHERE name = ?",
+            params![profile_name],
+        )
+        .map_err(|error| error.to_string())?;
+
+    if deleted == 0 {
+        return Err(format!("Connection profile not found: {profile_name}"));
+    }
+
+    Ok(())
+}
+
 pub fn save_editor_draft(
     db_path: &str,
     request: SaveEditorDraftRequest,

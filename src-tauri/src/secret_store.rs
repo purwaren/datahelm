@@ -50,6 +50,30 @@ pub fn resolve_secret(secret_ref: &str) -> Result<String, String> {
         .map_err(|error| format!("Keychain response parsing failed: {error}"))
 }
 
+pub fn delete_secret(secret_ref: &str) -> Result<(), String> {
+    let output = Command::new("/usr/bin/security")
+        .args([
+            "delete-generic-password",
+            "-a",
+            secret_ref,
+            "-s",
+            KEYCHAIN_SERVICE_NAME,
+        ])
+        .output()
+        .map_err(|error| format!("Keychain delete failed: {error}"))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("could not be found") || stderr.contains("The specified item could not be found") {
+        return Ok(());
+    }
+
+    Err(format!("Keychain delete failed: {}", stderr.trim()))
+}
+
 fn generate_secret_ref(profile_name: &str, engine_name: &str) -> Result<String, String> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

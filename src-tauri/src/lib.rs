@@ -31,6 +31,7 @@ pub fn run() {
             commands::fetch_metadata,
             commands::save_connection_profile,
             commands::list_connection_profiles,
+            commands::delete_connection_profile,
             commands::execute_sql,
             commands::save_editor_draft,
             commands::load_editor_draft,
